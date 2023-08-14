@@ -20,6 +20,8 @@ The addon's UI provides a set of convenient options to render sprite frames:
 
 After reviewing the above options, hit 'render' button.
 
-## Caveat
+------
 
-The blender will freeze until all renderning is finished. This is a known issue for now.
+Like this addon?
+
+<a href="https://www.buymeacoffee.com/pururum" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
