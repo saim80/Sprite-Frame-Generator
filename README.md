@@ -18,6 +18,8 @@ The addon's UI provides a set of convenient options to render sprite frames:
 - Output path (Note that sprites will be organized into 'Action Name' > 'Camera Direction' hierarchy.)
 - List of actions to filter for sprite generation. By default, all actions are selected.
 
+- NEW: As of 1.1.0, pixel art effect via composition nodes is added. You can control pixel size and color palette.
+
 After reviewing the above options, hit 'render' button.
 
 ------
