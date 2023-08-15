@@ -7,6 +7,7 @@ import math
 import numpy
 import threading
 import shutil
+import time
 
 {
     "name": "Sprite Frame Generator",
@@ -43,13 +44,17 @@ def rotate_camera_around_z_axis(camera, angle):
                                    [0, 0, 1]])
     camera.location = numpy.dot(camera.location, rotation_matrix)
     reset_camera_rotation(camera)
-    camera.rotation_euler[2] -= math.pi/2
 
 def reset_camera_rotation(camera):
     # make camera to look at the world origin
-    camera_location = camera.matrix_world.to_translation()
-    camera_direction = - camera_location
+    camera_direction = - camera.location
     camera.rotation_euler = camera_direction.to_track_quat('-Z', 'Y').to_euler()
+
+def rotate_light_around_z_axis(light, angle):
+    rotation_matrix = numpy.array([[math.cos(angle), -math.sin(angle), 0],
+                                   [math.sin(angle), math.cos(angle), 0],
+                                   [0, 0, 1]])
+    light.location = numpy.dot(light.location, rotation_matrix)
 
 ################
 # Data Structures
@@ -333,8 +338,27 @@ class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
                 return {'CANCELLED'}
         
         # Cancel if no action is selected.
-        if not any(context.scene.sprite_frame_generator_config.action_list):
+        empty_action_list = True
+        for i in range(len(bpy.data.actions)):
+            if context.scene.sprite_frame_generator_config.action_list[i]:
+                empty_action_list = False
+                break
+        if empty_action_list:
             self.report({'ERROR'}, "No action is selected.")
+            return {'CANCELLED'}
+
+        self.camera = bpy.data.objects['Camera']
+
+        # if camera is not found, cancel the render
+        if self.camera is None:
+            self.report({'ERROR'}, "Camera not found.")
+            return {'CANCELLED'}
+        
+        self.light = bpy.data.objects['Light']
+
+        # if light is not found, cancel the render
+        if self.light is None:
+            self.report({'ERROR'}, "Light not found.")
             return {'CANCELLED'}
 
         def long_task(self):
@@ -376,11 +400,11 @@ class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
                         # assign the action to the object
                         obj.animation_data.action = action
                     
-                    # make the camera to rotate around the z axis at the center of the world, keeping the offset from the world origin.
-                    camera = bpy.data.objects['Camera']
-
+                    target_angle = 2*math.pi*j/bpy.context.scene.sprite_frame_generator_config.render_rotation_angles
                     # make camera location vector to rotate around the z axis at the center of the world
-                    rotate_camera_around_z_axis(camera, 2*math.pi/context.scene.sprite_frame_generator_config.render_rotation_angles)
+                    rotate_camera_around_z_axis(self.camera, target_angle)
+                    # rotate it around the z axis at the center of the world
+                    rotate_light_around_z_axis(self.light, target_angle)
                     
                     # set output file path
                     bpy.context.scene.render.filepath = os.path.join(angle_folder, "frame_####")
@@ -390,7 +414,7 @@ class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
         
         self.th = threading.Thread(target=long_task, args=(self,))
         self.th.start()
-
+        
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.1, window=context.window)
         wm.modal_handler_add(self)
