@@ -1,3 +1,6 @@
+# (c) 2023 Pururum LLC
+# This code is licensed under MIT license (see LICENSE for details)
+
 import bpy
 import os
 import math
@@ -8,12 +11,16 @@ import shutil
 {
     "name": "Sprite Frame Generator",
     "author": "Pururum LLC",
-    "version": (1, 0),
+    "version": (1, 1, 0),
     "blender": (3, 0),
     "location": "View3D > Sidebar > Sprite Frame Generator",
     "description": "Generates sprite frames from a 3D model.",
     "category": "3D View",
 }
+
+################
+# Global Functions
+################
 
 # The global function to reuse for applying render settings.
 def apply_render_settings(context):
@@ -44,17 +51,9 @@ def reset_camera_rotation(camera):
     camera_direction = - camera_location
     camera.rotation_euler = camera_direction.to_track_quat('-Z', 'Y').to_euler()
 
-# Apply the render settings.
-class SpriteFrameGeneratorRenderSettingsAction(bpy.types.Operator):
-    """Apply the render settings."""
-    bl_idname = "sprite_frame_generator.apply_render_settings"
-    bl_label = "Apply Render Settings"
-    bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        apply_render_settings(context)
-        return {'FINISHED'}
-
+################
+# Data Structures
+################
 
 # Configurations
 class SpriteFrameGeneratorConfig(bpy.types.PropertyGroup):
@@ -77,6 +76,206 @@ class SpriteFrameGeneratorConfig(bpy.types.PropertyGroup):
     action_list_expanded: bpy.props.BoolProperty(
         name="Action Settings", default=True)
     action_list: bpy.props.BoolVectorProperty(name="Action List", size=30, default=[True] * 30) # NOTE: Strange, I cannot set a higher size number than 30. I don't know why.
+
+    composite_expanded: bpy.props.BoolProperty(
+        name="Pixel Art Settings", default=True)
+    composite_pixel_size: bpy.props.FloatProperty(
+        name="Pixel Size", default=12.0, min=1.0, max=10000.0)
+    composite_color_palette_size: bpy.props.FloatProperty(
+        name="Color Palette Size", default=30.0, min=1.0, max=10000.0)
+
+################
+# Operators
+################
+
+class SpriteFrameGeneratorConfirmCompositeNodesAction(bpy.types.Operator):
+    """Warning: This will clear all nodes in the compositor."""
+    bl_idname = "sprite_frame_generator.confirm_composite_nodes"
+    bl_label = "Delete All Composite Nodes"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        bpy.ops.sprite_frame_generator.generate_composite_nodes()
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+# The operator to generate composite nodes for pixelation effect.
+class SpriteFrameGeneratorCompositeNodesAction(bpy.types.Operator):
+    """Generates composite nodes for pixelation effect."""
+    bl_idname = "sprite_frame_generator.generate_composite_nodes"
+    bl_label = "Generate Composite Nodes"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        config = context.scene.sprite_frame_generator_config
+
+        # clear all nodes
+        bpy.context.scene.use_nodes = True
+        tree = bpy.context.scene.node_tree
+        for node in tree.nodes:
+            tree.nodes.remove(node)
+        
+        # Add Render Layers node
+        render_layers_node = tree.nodes.new(type='CompositorNodeRLayers')
+        render_layers_node.location = (0, 0)
+
+        # Create blur node
+        blur_node = tree.nodes.new(type='CompositorNodeBlur')
+        blur_node.location = (200, 0)
+        blur_node.filter_type = 'GAUSS'
+        blur_node.size_x = 1
+        blur_node.size_y = 1
+
+        # Connect Blur and Render Layers Nodes
+        tree.links.new(render_layers_node.outputs[0], blur_node.inputs[0])
+
+        # Create a scale node
+        scale_node = tree.nodes.new(type='CompositorNodeScale')
+        scale_node.location = (400, 0)
+        scale_node.space = 'RELATIVE'
+
+        # Connect Scale and Blur Nodes
+        tree.links.new(blur_node.outputs[0], scale_node.inputs[0])
+
+        # Create Pixelate node
+        pixelate_node = tree.nodes.new(type='CompositorNodePixelate')
+        pixelate_node.location = (600, 0)
+
+        # Connect Pixelate and Scale Nodes
+        tree.links.new(scale_node.outputs[0], pixelate_node.inputs[0])
+
+        # Create Scale node
+        scale_node2 = tree.nodes.new(type='CompositorNodeScale')
+        scale_node2.location = (800, 0)
+        scale_node2.space = 'RELATIVE'
+
+        # Connect Scale and Pixelate Nodes
+        tree.links.new(pixelate_node.outputs[0], scale_node2.inputs[0])
+
+        # Create Separate Color node
+        separate_color_node = tree.nodes.new(type='CompositorNodeSeparateColor')
+        separate_color_node.mode = 'HSV'
+        separate_color_node.location = (1000, 0)
+
+        # Connect Separate Color and Scale Nodes
+        tree.links.new(scale_node2.outputs[0], separate_color_node.inputs[0])
+
+        # Create Multiply node
+        multiply_node = tree.nodes.new(type='CompositorNodeMath')
+        multiply_node.location = (1200, -100)
+        multiply_node.operation = 'MULTIPLY'
+
+        # Connect Multiply and Separate Color Nodes
+        tree.links.new(separate_color_node.outputs[2], multiply_node.inputs[0])
+
+        # Create Round node
+        round_node = tree.nodes.new(type='CompositorNodeMath')
+        round_node.location = (1400, -100)
+        round_node.operation = 'ROUND'
+
+        # Connect Round and Multiply Nodes
+        tree.links.new(multiply_node.outputs[0], round_node.inputs[0])
+
+        # Create Divide node
+        divide_node = tree.nodes.new(type='CompositorNodeMath')
+        divide_node.location = (1600, -100)
+        divide_node.operation = 'DIVIDE'
+
+        # Connect Divide and Round Nodes
+        tree.links.new(round_node.outputs[0], divide_node.inputs[0])
+
+        # Create Combine HSV node
+        combine_hsv_node = tree.nodes.new(type='CompositorNodeCombineColor')
+        combine_hsv_node.mode = 'HSV'
+        combine_hsv_node.location = (1800, 0)
+
+        # Connect Combine HSV and Divide Nodes
+        tree.links.new(divide_node.outputs[0], combine_hsv_node.inputs[2])
+        # Connect Separate Color and Combine HSV Nodes
+        tree.links.new(separate_color_node.outputs[0], combine_hsv_node.inputs[0])
+        tree.links.new(separate_color_node.outputs[1], combine_hsv_node.inputs[1])
+
+        # Create Viewer node
+        viewer_node = tree.nodes.new(type='CompositorNodeViewer')
+        viewer_node.location = (2000, 0)
+
+        # Connect Viewer and Combine HSV Nodes
+        tree.links.new(combine_hsv_node.outputs[0], viewer_node.inputs[0])
+
+        # Create Composite node
+        composite_node = tree.nodes.new(type='CompositorNodeComposite')
+        composite_node.location = (2000, 100)
+
+        # Connect Composite and Combine HSV Nodes
+        tree.links.new(combine_hsv_node.outputs[0], composite_node.inputs[0])
+
+        # Create Value node
+        value_node = tree.nodes.new(type='CompositorNodeValue')
+        value_node.location = (0, -300)
+        value_node.outputs[0].default_value = config.composite_pixel_size
+        value_node.name = 'Pixel Size'
+        value_node.label = 'Pixel Size'
+
+        # Create Divide node
+        divide_node2 = tree.nodes.new(type='CompositorNodeMath')
+        divide_node2.location = (300, -200)
+        divide_node2.inputs[0].default_value = 1
+        divide_node2.operation = 'DIVIDE'
+        
+        # Connect Divide and Value Nodes
+        tree.links.new(value_node.outputs[0], divide_node2.inputs[1])
+
+        # Connect Divide and Scale Nodes
+        tree.links.new(divide_node2.outputs[0], scale_node.inputs[1])
+        tree.links.new(divide_node2.outputs[0], scale_node.inputs[2])
+
+        # Connect Value and Scale 2 Nodes
+        tree.links.new(value_node.outputs[0], scale_node2.inputs[1])
+        tree.links.new(value_node.outputs[0], scale_node2.inputs[2])
+
+        # Create Value node for Color Palette Size
+        value_node2 = tree.nodes.new(type='CompositorNodeValue')
+        value_node2.location = (1000, -400)
+        value_node2.outputs[0].default_value = config.composite_color_palette_size
+        value_node2.name = 'Color Palette Size'
+        value_node2.label = 'Color Palette Size'
+
+        # Connect Value and Multiply Nodes
+        tree.links.new(value_node2.outputs[0], multiply_node.inputs[1])
+        # Connect Value and Divide Nodes
+        tree.links.new(value_node2.outputs[0], divide_node.inputs[1])
+
+        # Create Round node for Separate Color
+        round_node2 = tree.nodes.new(type='CompositorNodeMath')
+        round_node2.location = (1200, -400)
+        round_node2.operation = 'ROUND'
+        round_node2.use_clamp = True
+
+        # Connect Round and Separate Color Nodes
+        tree.links.new(separate_color_node.outputs[3], round_node2.inputs[0])
+
+        # Connect Round and Combine HSV Nodes
+        tree.links.new(round_node2.outputs[0], combine_hsv_node.inputs[3])
+
+        return {'FINISHED'}
+
+# Apply the render settings.
+class SpriteFrameGeneratorRenderSettingsAction(bpy.types.Operator):
+    """Apply the render settings."""
+    bl_idname = "sprite_frame_generator.apply_render_settings"
+    bl_label = "Apply Render Settings"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        apply_render_settings(context)
+        return {'FINISHED'}
+
 
 # The main operator to generate the sprite frames.
 class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
@@ -199,6 +398,10 @@ class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
 
+################
+# Panels
+################
+
 # The main panel to control how the sprite frames are generated.
 #
 # Section 1: Render Settings
@@ -271,12 +474,28 @@ class SpriteFrameGeneratorPanel(bpy.types.Panel):
                 for i in range(len(all_actions)):
                     box.row().prop(config, "action_list",
                                    index=i, text=all_actions[i].name)
+        
+        # Section 4: Composition Settings
+        box = layout.box()
+        # Add prop for expanded property on config.
+        box.row().prop(config, "composite_expanded",
+                          icon="TRIA_DOWN" if config.composite_expanded else "TRIA_RIGHT", icon_only=True, emboss=False, text="Pixel Art Settings")
+        
+        if config.composite_expanded:
+            box.row().prop(config, "composite_pixel_size", text="Pixel Size")
+            box.row().prop(config, "composite_color_palette_size", text="Color Palette Size")
+            box.row().operator("sprite_frame_generator.confirm_composite_nodes", text="Apply Pixel Art")
 
-        # Section 4: Render Button
+        # Section 5: Render Button
         layout.row().operator("sprite_frame_generator.render_sprite_frames", text="Render")
 
+################
+# Registration
+################
 
 classes = (
+    SpriteFrameGeneratorConfirmCompositeNodesAction,
+    SpriteFrameGeneratorCompositeNodesAction,
     SpriteFrameGeneratorRenderAction,
     SpriteFrameGeneratorRenderSettingsAction,
     SpriteFrameGeneratorConfig,
