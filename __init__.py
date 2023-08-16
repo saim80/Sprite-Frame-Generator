@@ -298,7 +298,19 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
     th = None
     stop_early = False
 
-    def cancel(self, context):
+    # Intermittent crashes when running render function in background. 
+    # Using the foreground thread will freeze blender until the render is complete.
+    run_in_background = False
+
+    def start_timer(self, context):
+        self.th = threading.Thread(target=self.render_animations, args=())
+        self.th.start()
+
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.1, context.window)
+        wm.modal_handler_add(self)
+    
+    def cancel_timer(self, context):
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
         self.stop_early = True
@@ -372,8 +384,6 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
                 # set output file path
                 scene.render.filepath = os.path.join(angle_folder, "frame_####")
 
-                time.sleep(0.2)
-
                 # render animation.
                 bpy.ops.render.render(animation=True)
 
@@ -423,14 +433,13 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
             self.report({'ERROR'}, "Light not found.")
             return {'CANCELLED'}
 
-        self.th = threading.Thread(target=self.render_animations, args=())
-        self.th.start()
-        
-        wm = context.window_manager
-        self._timer = wm.event_timer_add(0.1, window=context.window)
-        wm.modal_handler_add(self)
+        if self.run_in_background:
+            self.start_timer(context)
+            return {'RUNNING_MODAL'}
 
-        return {'RUNNING_MODAL'}
+        self.render_animations()
+        return {'FINISHED'}
+
 
 
 ################
