@@ -70,8 +70,13 @@ class SPRITEFRAMEGENERATOR_HT_Config(bpy.types.PropertyGroup):
     render_directions: bpy.props.IntProperty(
         name="Rotation Angles", default=4, min=1, max=10000)
     render_fps: bpy.props.IntProperty(name="FPS", default=30, min=1, max=10000)
+
+    animation_expanded: bpy.props.BoolProperty(
+        name="Animation Settings", default=True)
     animation_frame_step: bpy.props.IntProperty(
         name="Frame Step", default=1, min=1, max=10000)
+    animation_start_frame: bpy.props.IntProperty(
+        name="Start Frame", default=1, min=0, max=10000)
 
     output_expanded: bpy.props.BoolProperty(
         name="Output Settings", default=True)
@@ -321,25 +326,28 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
             if self.stop_early:
                 return
             action = bpy.data.actions[i]
+            config = bpy.context.scene.sprite_frame_generator_config
+            scene = bpy.context.scene
+
             # Check if the action is selected.
-            if not bpy.context.scene.sprite_frame_generator_config.action_list[i]:
+            if not config.action_list[i]:
                 continue
 
             self.report({'INFO'}, "Rendering action " + action.name + "...")
 
             # dynamically set the last frame to render based on the action
-            bpy.context.scene.frame_start = int(action.frame_range[0])
-            bpy.context.scene.frame_end = int(action.frame_range[1])
+            scene.frame_start = int(action.frame_range[0]) + config.animation_start_frame
+            scene.frame_end = int(action.frame_range[1])
 
             # delete action folder if it already exists
             action_folder = os.path.join(self.output_path, action.name)
             if os.path.exists(action_folder):
                 shutil.rmtree(action_folder)
             
-            angle_delta = 2*math.pi/bpy.context.scene.sprite_frame_generator_config.render_directions
+            angle_delta = 2*math.pi/config.render_directions
 
             # Loop through all rotation angles.
-            for j in range(bpy.context.scene.sprite_frame_generator_config.render_directions):
+            for j in range(config.render_directions):
                 if self.stop_early:
                     return
 
@@ -362,7 +370,7 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
                 rotate_light_around_z_axis(self.light, angle_delta)
                 
                 # set output file path
-                bpy.context.scene.render.filepath = os.path.join(angle_folder, "frame_####")
+                scene.render.filepath = os.path.join(angle_folder, "frame_####")
 
                 time.sleep(0.2)
 
@@ -473,17 +481,17 @@ class SPRITEFRAMEGENERATOR_PT_MainPanel(bpy.types.Panel):
             box.row().prop(config, "render_resolution", text="Resolution")
             box.row().prop(config, "render_directions", text="Directions")
             box.row().prop(config, "render_fps", text="FPS")
-            box.row().prop(config, "animation_frame_step", text="Frame Step")
             box.row().operator("sprite_frame_generator.apply_render_settings", text="Apply Render Settings")
-
-        # Section 2: Output Settings
+        
+        # Section 2: Animation Settings
         box = layout.box()
-        # Add prop for expand property on config.
-        box.row().prop(config, "output_expanded",
-                       icon="TRIA_DOWN" if config.output_expanded else "TRIA_RIGHT", icon_only=True, emboss=False, text="Output Settings")
-
-        if config.output_expanded:
-            box.row().prop(config, "output_path", text="Output Folder")
+        # Add prop for expanded property on config.
+        box.row().prop(config, "animation_expanded",
+                          icon="TRIA_DOWN" if config.animation_expanded else "TRIA_RIGHT", icon_only=True, emboss=False, text="Animation Settings")
+        
+        if config.animation_expanded:
+            box.row().prop(config, "animation_frame_step", text="Frame Step")
+            box.row().prop(config, "animation_start_frame", text="Start Frame")
 
         # Section 3: Action List
         box = layout.box()
@@ -513,7 +521,16 @@ class SPRITEFRAMEGENERATOR_PT_MainPanel(bpy.types.Panel):
             box.row().prop(config, "composite_color_palette_size", text="Color Palette Size")
             box.row().operator("sprite_frame_generator.confirm_composite_nodes", text="Apply Pixel Art")
 
-        # Section 5: Render Button
+        # Section 5: Output Settings
+        box = layout.box()
+        # Add prop for expand property on config.
+        box.row().prop(config, "output_expanded",
+                       icon="TRIA_DOWN" if config.output_expanded else "TRIA_RIGHT", icon_only=True, emboss=False, text="Output Settings")
+
+        if config.output_expanded:
+            box.row().prop(config, "output_path", text="Output Folder")
+
+        # Section 6: Render Button
         layout.row().operator("sprite_frame_generator.render_sprite_frames", text="Render")
 
 ################
