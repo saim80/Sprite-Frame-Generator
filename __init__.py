@@ -67,7 +67,7 @@ class SPRITEFRAMEGENERATOR_HT_Config(bpy.types.PropertyGroup):
         name="Camera Settings", default=True)
     render_resolution: bpy.props.IntVectorProperty(name="Resolution", default=(
         1920, 1080), size=2, min=1, max=10000)
-    render_rotation_angles: bpy.props.IntProperty(
+    render_directions: bpy.props.IntProperty(
         name="Rotation Angles", default=4, min=1, max=10000)
     render_fps: bpy.props.IntProperty(name="FPS", default=30, min=1, max=10000)
     animation_frame_step: bpy.props.IntProperty(
@@ -315,6 +315,59 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
 
         return {'PASS_THROUGH'}
 
+    def render_animations(self):
+        # Loop through all actions.
+        for i in range(len(bpy.data.actions)):
+            if self.stop_early:
+                return
+            action = bpy.data.actions[i]
+            # Check if the action is selected.
+            if not bpy.context.scene.sprite_frame_generator_config.action_list[i]:
+                continue
+
+            self.report({'INFO'}, "Rendering action " + action.name + "...")
+
+            # dynamically set the last frame to render based on the action
+            bpy.context.scene.frame_start = int(action.frame_range[0])
+            bpy.context.scene.frame_end = int(action.frame_range[1])
+
+            # delete action folder if it already exists
+            action_folder = os.path.join(self.output_path, action.name)
+            if os.path.exists(action_folder):
+                shutil.rmtree(action_folder)
+
+            # Loop through all rotation angles.
+            for j in range(bpy.context.scene.sprite_frame_generator_config.render_directions):
+                if self.stop_early:
+                    return
+
+                self.report({'INFO'}, "Rendering direction " + str(j) + "...")
+                # create folder for the angle and action
+                angle_folder = os.path.join(self.output_path, action.name, "direction_"+str(j))
+
+                # create the folder if it doesn't exist
+                if not os.path.exists(angle_folder):
+                    os.makedirs(angle_folder)
+                
+                # make all selected objects to rotate around the z axis
+                for obj in self.selected_objects:
+                    # assign the action to the object
+                    obj.animation_data.action = action
+                
+                target_angle = 2*math.pi*j/bpy.context.scene.sprite_frame_generator_config.render_directions
+                # make camera location vector to rotate around the z axis at the center of the world
+                rotate_camera_around_z_axis(self.camera, target_angle)
+                # rotate it around the z axis at the center of the world
+                rotate_light_around_z_axis(self.light, target_angle)
+                
+                # set output file path
+                bpy.context.scene.render.filepath = os.path.join(angle_folder, "frame_####")
+
+                time.sleep(0.2)
+
+                # render animation.
+                bpy.ops.render.render(animation=True)
+
     def execute(self, context):
         apply_render_settings(context)
         # notify the user that the rendering has started.
@@ -361,58 +414,7 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
             self.report({'ERROR'}, "Light not found.")
             return {'CANCELLED'}
 
-        def long_task(self):
-            # Loop through all actions.
-            for i in range(len(bpy.data.actions)):
-                if self.stop_early:
-                    return
-                action = bpy.data.actions[i]
-                # Check if the action is selected.
-                if not bpy.context.scene.sprite_frame_generator_config.action_list[i]:
-                    continue
-
-                self.report({'INFO'}, "Rendering action " + action.name + "...")
-
-                # dynamically set the last frame to render based on the action
-                bpy.context.scene.frame_start = int(action.frame_range[0])
-                bpy.context.scene.frame_end = int(action.frame_range[1])
-
-                # delete action folder if it already exists
-                action_folder = os.path.join(self.output_path, action.name)
-                if os.path.exists(action_folder):
-                    shutil.rmtree(action_folder)
-
-                # Loop through all rotation angles.
-                for j in range(bpy.context.scene.sprite_frame_generator_config.render_rotation_angles):
-                    if self.stop_early:
-                        return
-
-                    self.report({'INFO'}, "Rendering direction " + str(j) + "...")
-                    # create folder for the angle and action
-                    angle_folder = os.path.join(self.output_path, action.name, "direction_"+str(j))
-
-                    # create the folder if it doesn't exist
-                    if not os.path.exists(angle_folder):
-                        os.makedirs(angle_folder)
-                    
-                    # make all selected objects to rotate around the z axis
-                    for obj in self.selected_objects:
-                        # assign the action to the object
-                        obj.animation_data.action = action
-                    
-                    target_angle = 2*math.pi*j/bpy.context.scene.sprite_frame_generator_config.render_rotation_angles
-                    # make camera location vector to rotate around the z axis at the center of the world
-                    rotate_camera_around_z_axis(self.camera, target_angle)
-                    # rotate it around the z axis at the center of the world
-                    rotate_light_around_z_axis(self.light, target_angle)
-                    
-                    # set output file path
-                    bpy.context.scene.render.filepath = os.path.join(angle_folder, "frame_####")
-
-                    # render animation.
-                    bpy.ops.render.render(animation=True)
-        
-        self.th = threading.Thread(target=long_task, args=(self,))
+        self.th = threading.Thread(target=self.render_animations, args=())
         self.th.start()
         
         wm = context.window_manager
@@ -468,7 +470,7 @@ class SPRITEFRAMEGENERATOR_PT_MainPanel(bpy.types.Panel):
 
         if config.render_expanded:
             box.row().prop(config, "render_resolution", text="Resolution")
-            box.row().prop(config, "render_rotation_angles", text="Rotation Angles")
+            box.row().prop(config, "render_directions", text="Directions")
             box.row().prop(config, "render_fps", text="FPS")
             box.row().prop(config, "animation_frame_step", text="Frame Step")
             box.row().operator("sprite_frame_generator.apply_render_settings", text="Apply Render Settings")
