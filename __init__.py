@@ -335,6 +335,8 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
             action_folder = os.path.join(self.output_path, action.name)
             if os.path.exists(action_folder):
                 shutil.rmtree(action_folder)
+            
+            angle_delta = 2*math.pi/bpy.context.scene.sprite_frame_generator_config.render_directions
 
             # Loop through all rotation angles.
             for j in range(bpy.context.scene.sprite_frame_generator_config.render_directions):
@@ -354,11 +356,10 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
                     # assign the action to the object
                     obj.animation_data.action = action
                 
-                target_angle = 2*math.pi*j/bpy.context.scene.sprite_frame_generator_config.render_directions
                 # make camera location vector to rotate around the z axis at the center of the world
-                rotate_camera_around_z_axis(self.camera, target_angle)
+                rotate_camera_around_z_axis(self.camera, angle_delta)
                 # rotate it around the z axis at the center of the world
-                rotate_light_around_z_axis(self.light, target_angle)
+                rotate_light_around_z_axis(self.light, angle_delta)
                 
                 # set output file path
                 bpy.context.scene.render.filepath = os.path.join(angle_folder, "frame_####")
