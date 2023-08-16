@@ -61,7 +61,7 @@ def rotate_light_around_z_axis(light, angle):
 ################
 
 # Configurations
-class SpriteFrameGeneratorConfig(bpy.types.PropertyGroup):
+class SPRITEFRAMEGENERATOR_HT_Config(bpy.types.PropertyGroup):
     """The configuration for the sprite frame generator."""
     render_expanded: bpy.props.BoolProperty(
         name="Camera Settings", default=True)
@@ -93,7 +93,7 @@ class SpriteFrameGeneratorConfig(bpy.types.PropertyGroup):
 # Operators
 ################
 
-class SpriteFrameGeneratorConfirmCompositeNodesAction(bpy.types.Operator):
+class SPRITEFRAMEGENERATOR_OT_ConfirmCompositeNodes(bpy.types.Operator):
     """Warning: This will clear all nodes in the compositor."""
     bl_idname = "sprite_frame_generator.confirm_composite_nodes"
     bl_label = "Delete All Composite Nodes"
@@ -111,7 +111,7 @@ class SpriteFrameGeneratorConfirmCompositeNodesAction(bpy.types.Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 # The operator to generate composite nodes for pixelation effect.
-class SpriteFrameGeneratorCompositeNodesAction(bpy.types.Operator):
+class SPRITEFRAMEGENERATOR_OT_CompositeNodes(bpy.types.Operator):
     """Generates composite nodes for pixelation effect."""
     bl_idname = "sprite_frame_generator.generate_composite_nodes"
     bl_label = "Generate Composite Nodes"
@@ -271,7 +271,7 @@ class SpriteFrameGeneratorCompositeNodesAction(bpy.types.Operator):
         return {'FINISHED'}
 
 # Apply the render settings.
-class SpriteFrameGeneratorRenderSettingsAction(bpy.types.Operator):
+class SPRITEFRAMEGENERATOR_OT_RenderSettings(bpy.types.Operator):
     """Apply the render settings."""
     bl_idname = "sprite_frame_generator.apply_render_settings"
     bl_label = "Apply Render Settings"
@@ -283,7 +283,7 @@ class SpriteFrameGeneratorRenderSettingsAction(bpy.types.Operator):
 
 
 # The main operator to generate the sprite frames.
-class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
+class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
     """Render the sprite frames."""
     bl_idname = "sprite_frame_generator.render_sprite_frames"
     bl_label = "Render Sprite Frames"
@@ -447,7 +447,7 @@ class SpriteFrameGeneratorRenderAction(bpy.types.Operator):
 #
 # - Render button to start the rendering process.
 #
-class SpriteFrameGeneratorPanel(bpy.types.Panel):
+class SPRITEFRAMEGENERATOR_PT_MainPanel(bpy.types.Panel):
     """Creates a Panel in the configect properties window"""
     bl_label = "Sprite Frame Generator"
     bl_category = "Sprite"
@@ -518,12 +518,12 @@ class SpriteFrameGeneratorPanel(bpy.types.Panel):
 ################
 
 classes = (
-    SpriteFrameGeneratorConfirmCompositeNodesAction,
-    SpriteFrameGeneratorCompositeNodesAction,
-    SpriteFrameGeneratorRenderAction,
-    SpriteFrameGeneratorRenderSettingsAction,
-    SpriteFrameGeneratorConfig,
-    SpriteFrameGeneratorPanel,
+    SPRITEFRAMEGENERATOR_OT_ConfirmCompositeNodes,
+    SPRITEFRAMEGENERATOR_OT_CompositeNodes,
+    SPRITEFRAMEGENERATOR_OT_Render,
+    SPRITEFRAMEGENERATOR_OT_RenderSettings,
+    SPRITEFRAMEGENERATOR_HT_Config,
+    SPRITEFRAMEGENERATOR_PT_MainPanel,
 )
 
 
@@ -533,7 +533,7 @@ def register():
         bpy.utils.register_class(cls)
     # Add config object to the scene.
     bpy.types.Scene.sprite_frame_generator_config = bpy.props.PointerProperty(
-        type=SpriteFrameGeneratorConfig)
+        type=SPRITEFRAMEGENERATOR_HT_Config)
 
 
 def unregister():
