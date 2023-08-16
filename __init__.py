@@ -399,7 +399,16 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
         # get all objects with animation data and set them to self.animatable_objects
         self.animatable_objects = []
         for obj in bpy.data.objects:
-            if obj.animation_data is not None:
+            # obj type must be ARMATURE
+            if obj.type != 'ARMATURE':
+                continue
+
+            # obj must have animation data, otherwise create one
+            if not obj.animation_data:
+                obj.animation_data_create()
+
+            # add to animatable objects
+            if obj.animation_data:
                 self.animatable_objects.append(obj)
         
         # Cancel if no action is selected.
