@@ -372,7 +372,7 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
                     os.makedirs(angle_folder)
                 
                 # make all selected objects to rotate around the z axis
-                for obj in self.selected_objects:
+                for obj in self.animatable_objects:
                     # assign the action to the object
                     obj.animation_data.action = action
                 
@@ -396,18 +396,11 @@ class SPRITEFRAMEGENERATOR_OT_Render(bpy.types.Operator):
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
         
-        # Get list of selected objects.
-        self.selected_objects = bpy.context.selected_objects
-        
-        if len(self.selected_objects) == 0:
-            self.report({'ERROR'}, "No object is selected.")
-            return {'CANCELLED'}
-
-        # Cancel if a selected object has no animation data.
-        for obj in self.selected_objects:
-            if obj.animation_data is None:
-                self.report({'ERROR'}, "Object " + obj.name + " has no animation data.")
-                return {'CANCELLED'}
+        # get all objects with animation data and set them to self.animatable_objects
+        self.animatable_objects = []
+        for obj in bpy.data.objects:
+            if obj.animation_data is not None:
+                self.animatable_objects.append(obj)
         
         # Cancel if no action is selected.
         empty_action_list = True
